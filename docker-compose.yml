@@ -1,0 +1,120 @@
+# N8N Services base setup
+
+services:
+  db:
+    image: docker.io/postgres:14
+    container_name: n8n-db
+    hostname: db
+    environment:
+      - POSTGRES_USER=n8n
+      - POSTGRES_PASSWORD=n8npass
+      - POSTGRES_DB=n8n
+    volumes:
+      - ./volumes/postgres_data:/var/lib/postgresql/data:Z
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U n8n"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      n8n_net:
+        ipv4_address: 172.28.0.2
+
+  redis:
+    image: docker.io/redis:7
+    container_name: n8n-redis
+    hostname: redis
+    ports:
+      - "6389:6379"
+    volumes:
+      - ./volumes/redis_data:/data:Z
+    networks:
+      n8n_net:
+        ipv4_address: 172.28.0.3
+
+  redisinsight:
+    image: docker.io/redislabs/redisinsight:latest
+    container_name: n8n-redisinsight
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDISINSIGHT_HOST=0.0.0.0
+      - REDISINSIGHT_ACCEPT_LICENSE=true
+    ports:
+      - "9001:5540"
+    volumes:
+      - ./volumes/redisinsight_data:/db:Z
+    depends_on:
+      - redis
+    extra_hosts:
+      - "redis:172.28.0.3"
+    networks:
+      n8n_net:
+        ipv4_address: 172.28.0.4
+
+  n8n:
+    image: docker.io/n8nio/n8n
+    container_name: n8n-app
+    hostname: n8n
+    ports:
+      - "5678:5678"
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=db
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n
+      - DB_POSTGRESDB_USER=n8n
+      - DB_POSTGRESDB_PASSWORD=n8npass
+      # Local development settings
+      - N8N_HOST=localhost
+      - N8N_PROTOCOL=http
+      - N8N_SECURE_COOKIE=false
+      - WEBHOOK_TUNNEL_URL=http://localhost:5678
+    depends_on:
+      db:
+        condition: service_healthy
+    extra_hosts:
+      - "db:172.28.0.2"
+      - "redis:172.28.0.3"
+    volumes:
+      - ./volumes/n8n_data:/home/node/.n8n:Z
+      - ./volumes/workflows:/app/workflows:Z
+    # Use current user UID/GID (will be set by init script or use default 1000:1000)
+    user: "${N8N_UID:-1000}:${N8N_GID:-1000}"
+    restart: unless-stopped
+    networks:
+      n8n_net:
+        ipv4_address: 172.28.0.5
+
+  n8n-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+    container_name: n8n-mcp
+    ports:
+      - "8012:8012"
+    environment:
+      - N8N_URL=http://n8n:5678
+      - N8N_API_KEY=${N8N_API_KEY:-}
+      - WORKFLOWS_DIR=/app/workflows
+      - CONFIG_DIR=/app/config
+    depends_on:
+      - n8n
+    extra_hosts:
+      - "n8n:172.28.0.5"
+    restart: unless-stopped
+    volumes:
+      - ./volumes/workflows:/app/workflows:Z
+      - ./volumes/config:/app/config:Z
+    networks:
+      n8n_net:
+        ipv4_address: 172.28.0.6
+
+networks:
+  n8n_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+          gateway: 172.28.0.1
+

@@ -1,0 +1,16 @@
+FROM docker.io/python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements_mcp.txt .
+RUN pip install --no-cache-dir -r requirements_mcp.txt
+
+COPY n8n_mcp_server.py .
+
+# Create workflows and config directories
+RUN mkdir -p /app/workflows /app/config
+
+EXPOSE 8012
+
+CMD ["python", "n8n_mcp_server.py"]
+
