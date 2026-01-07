@@ -243,9 +243,11 @@ def import_workflow(workflow_data: Dict, filename: str,
     """
     workflow_name = workflow_data.get("name", "Unknown")
     
-    # Ensure required fields are present
-    if "active" not in workflow_data:
-        workflow_data["active"] = False  # Default to inactive on import
+    # Remove read-only fields that cannot be set during import
+    # These fields are managed by N8N and will cause import errors if present
+    read_only_fields = ["active", "id", "createdAt", "updatedAt", "versionId", "tags"]
+    for field in read_only_fields:
+        workflow_data.pop(field, None)
     
     # Prepare headers
     headers = {"Content-Type": "application/json"}
@@ -263,7 +265,8 @@ def import_workflow(workflow_data: Dict, filename: str,
             workflow_id = existing_workflows[workflow_name].get("id")
             logging.info(f"Updating existing workflow '{workflow_name}' (ID: {workflow_id})")
             
-            # Remove id from workflow_data if present (N8N will use the existing one)
+            # Remove read-only fields before update
+            # (already removed above, but ensure id is removed for update)
             workflow_data.pop("id", None)
             
             try:
@@ -296,7 +299,7 @@ def import_workflow(workflow_data: Dict, filename: str,
                 return False
     
     # Import new workflow
-    # Remove id from workflow_data to ensure it's created as new
+    # Read-only fields already removed above, but ensure id is removed
     workflow_data.pop("id", None)
     
     try:
