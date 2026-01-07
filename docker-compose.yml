@@ -33,7 +33,7 @@ services:
         ipv4_address: 172.28.0.3
 
   redisinsight:
-    image: docker.io/redislabs/redisinsight:latest
+    image: docker.io/redislabs/redisinsight:3.0
     container_name: n8n-redisinsight
     environment:
       - REDIS_HOST=redis
@@ -53,7 +53,7 @@ services:
         ipv4_address: 172.28.0.4
 
   n8n:
-    image: docker.io/n8nio/n8n
+    image: docker.io/n8nio/n8n:2.2.4
     container_name: n8n-app
     hostname: n8n
     ports:
