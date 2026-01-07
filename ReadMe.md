@@ -2,26 +2,59 @@
 
 ## Quick Start
 
+### Prima Installazione
+
+Per la prima installazione, usa lo script di inizializzazione che configura automaticamente tutto:
+
 ```bash
-cd n8n
-# (Opzionale) Configura permessi per il tuo utente
-./setup_permissions.sh
-export N8N_UID=$(id -u)
-export N8N_GID=$(id -g)
+cd n8n-as-mas-support-tech
+./init-project.sh
+```
+
+Lo script `init-project.sh`:
+
+- Chiede interattivamente le credenziali admin (email e password)
+- Determina automaticamente UID/GID del tuo utente
+- Crea tutte le directory necessarie
+- Verifica e corregge i permessi
+- Genera il file `.env` con tutte le configurazioni
+
+Dopo l'inizializzazione:
+
+```bash
+# Avvia i container
 podman compose up -d
+
+# Attendi 30-60 secondi che i container siano pronti, poi inizializza N8N
 ./init-n8n.sh
 ```
 
 Lo script `init-n8n.sh` crea automaticamente:
-- Utente admin: `admin@spee.it` / `admin`
+
+- Utente admin con le credenziali specificate in `.env`
 - Progetto personale collegato all'utente
 - Configurazione iniziale
 
 **Nota:** Esegui `init-n8n.sh` dopo il primo `podman compose up -d` o se hai problemi di login.
 
-### Configurazione Permessi Utente
+### Installazioni Successive
 
-Per usare i permessi del tuo utente invece di 1000:1000 hardcoded:
+Se hai già eseguito `init-project.sh` e hai il file `.env`:
+
+```bash
+# (Opzionale) Carica le variabili d'ambiente dal file .env
+source .env
+
+# Avvia i container
+podman compose up -d
+
+# Inizializza N8N (se necessario)
+./init-n8n.sh
+```
+
+### Configurazione Manuale (Alternativa)
+
+Se preferisci configurare manualmente invece di usare `init-project.sh`:
 
 ```bash
 # Configura permessi e variabili d'ambiente
@@ -41,6 +74,52 @@ export N8N_GID=$(id -g)
 
 Questo rende il setup più portabile e compatibile con il tuo utente.
 
+## Script di Inizializzazione
+
+### init-project.sh
+
+Lo script `init-project.sh` prepara l'ambiente prima di eseguire `podman compose up -d`. Esegue automaticamente:
+
+1. **Verifica prerequisiti**: Controlla che podman e docker-compose.yml siano presenti
+
+2. **Configurazione credenziali admin**: Chiede interattivamente email e password per l'utente admin di N8N
+   - Valida il formato email
+   - Richiede password con conferma (minimo 6 caratteri)
+
+3. **Determinazione UID/GID**: Rileva automaticamente l'UID e GID dell'utente corrente
+
+4. **Creazione directory**: Crea tutte le directory `volumes/*` necessarie se mancanti
+
+5. **Verifica permessi**: Controlla e corregge i permessi delle directory usando `podman unshare`
+
+6. **Generazione file .env**: Crea il file `.env` con tutte le variabili d'ambiente:
+   - `ADMIN_EMAIL` e `ADMIN_PASSWORD`: Credenziali admin
+   - `N8N_UID` e `N8N_GID`: ID utente/gruppo per i container
+   - `N8N_API_KEY`: Chiave API opzionale (vuota inizialmente)
+
+Il file `.env` viene creato con permessi 600 (solo proprietario) per sicurezza.
+
+**Utilizzo**:
+
+```bash
+./init-project.sh
+```
+
+Lo script è interattivo e guida l'utente attraverso il processo di configurazione.
+
+### init-n8n.sh
+
+Lo script `init-n8n.sh` crea l'utente admin e il progetto personale in N8N. Legge automaticamente le credenziali dal file `.env` se presente, altrimenti usa valori di default.
+
+**Utilizzo**:
+
+```bash
+# Dopo che i container sono avviati e pronti
+./init-n8n.sh
+```
+
+**Nota**: Esegui questo script dopo `podman compose up -d` e dopo aver atteso che i container siano completamente inizializzati (circa 30-60 secondi).
+
 Servizi disponibili:
 
 | Servizio | URL | Descrizione |
@@ -52,10 +131,16 @@ Servizi disponibili:
 
 ## Credenziali di Accesso
 
-Le credenziali sono salvate nel file `.secret`:
+Le credenziali admin sono configurate durante l'esecuzione di `init-project.sh` e salvate nel file `.env`:
 
-- **Email:** `admin@spee.it`
-- **Password:** `admin`
+- **Email:** Configurata durante `init-project.sh` (default: `admin@spee.it` se non specificato)
+- **Password:** Configurata durante `init-project.sh` (default: `admin` se non specificato)
+
+Il file `.env` contiene anche:
+- `N8N_UID` e `N8N_GID`: ID utente/gruppo per i container
+- `N8N_API_KEY`: Chiave API opzionale (può essere configurata dopo)
+
+**Nota:** Il file `.env` è nel `.gitignore` e non viene committato nel repository per sicurezza.
 
 ## Struttura dei Volumi
 
@@ -173,7 +258,7 @@ Lo script `delete_workflow.py` elimina un workflow dato il nome:
 ./delete_workflow.py "Nome Workflow" --url http://localhost:5678
 ```
 
-**Nota**: Entrambi gli script usano automaticamente username/password dal file `.secret`, oppure l'API key se disponibile.
+**Nota**: Entrambi gli script usano automaticamente username/password dal file `.env` (se presente), oppure l'API key se disponibile.
 
 ### Reset Completo di N8N
 
@@ -199,12 +284,16 @@ Lo script `reset_n8n.sh` resetta N8N a uno stato vergine, eliminando tutti i dat
 
 **Dopo il reset**, i container rimangono fermati. Devi:
 
-1. (Opzionale) Configura permessi per il tuo utente:
+1. Rigenerare la configurazione (se il file `.env` è stato eliminato):
 
    ```bash
-   ./setup_permissions.sh
-   export N8N_UID=$(id -u)
-   export N8N_GID=$(id -g)
+   ./init-project.sh
+   ```
+
+   Oppure, se il file `.env` esiste ancora:
+
+   ```bash
+   source .env
    ```
 
 2. Riavviare i container:
@@ -219,7 +308,7 @@ Lo script `reset_n8n.sh` resetta N8N a uno stato vergine, eliminando tutti i dat
    ./init-n8n.sh
    ```
 
-**Nota**: Le variabili `N8N_UID` e `N8N_GID` permettono ai container di usare l'UID/GID del tuo utente invece di 1000:1000 hardcoded, rendendo il setup più portabile.
+**Nota**: Le variabili `N8N_UID` e `N8N_GID` nel file `.env` permettono ai container di usare l'UID/GID del tuo utente invece di 1000:1000 hardcoded, rendendo il setup più portabile.
 
 ## Esempio Redis-Echo
 
@@ -364,6 +453,14 @@ Per ricominciare da zero, usa lo script dedicato:
 ./reset_n8n.sh
 ```
 
+Dopo il reset, rigenera la configurazione:
+
+```bash
+./init-project.sh
+podman compose up -d
+./init-n8n.sh
+```
+
 Oppure manualmente:
 
 ```bash
@@ -372,8 +469,9 @@ rm -rf volumes/postgres_data/*
 rm -rf volumes/n8n_data/*
 rm -rf volumes/redis_data/*
 rm -rf volumes/redisinsight_data/*
+./init-project.sh
 podman compose up -d
 ./init-n8n.sh
 ```
 
-**Nota**: Lo script `reset_n8n.sh` è più sicuro perché richiede conferma e preserva i workflow esportati.
+**Nota**: Lo script `reset_n8n.sh` è più sicuro perché richiede conferma e preserva i workflow esportati. Il file `.env` non viene eliminato dal reset, ma puoi rigenerarlo con `init-project.sh` se necessario.

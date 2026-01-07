@@ -4,11 +4,25 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_FILE="$SCRIPT_DIR/.env"
+
 DB_CONTAINER="n8n-db"
 DB_USER="n8n"
 DB_NAME="n8n"
-ADMIN_EMAIL="admin@spee.it"
-ADMIN_PASSWORD="admin"
+
+# Load credentials from .env file if it exists, otherwise use defaults
+if [ -f "$ENV_FILE" ]; then
+    echo "Loading configuration from .env file..."
+    source "$ENV_FILE"
+    ADMIN_EMAIL="${ADMIN_EMAIL:-admin@spee.it}"
+    ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin}"
+else
+    echo "No .env file found, using default credentials..."
+    ADMIN_EMAIL="admin@spee.it"
+    ADMIN_PASSWORD="admin"
+fi
+
 ADMIN_FIRST_NAME="Admin"
 ADMIN_LAST_NAME="User"
 
